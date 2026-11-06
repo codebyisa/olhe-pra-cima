@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Aviões, a Estação Espacial e o que mais está passando sobre você agora, em tempo real.">
+  <meta name="theme-color" content="#07090d">
+  <title>Olhe pra cima — o que está passando sobre você agora?</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-view="intro">
+
+  <!-- ***** Ícones (sprite SVG) ***** -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-plane" viewBox="0 0 24 24">
+      <path d="M21 15.5v-1.6l-8-5V3.6a1.5 1.5 0 0 0-3 0v5.3l-8 5v1.6l8-2.5v5.2l-2.3 1.7V21l3.8-1.1 3.8 1.1v-1.2l-2.3-1.7V13l8 2.5z" transform="translate(1 0)"/>
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24">
+      <path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
+    </symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3.2"/>
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M16 16l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-close" viewBox="0 0 24 24">
+      <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24">
+      <rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
+
+  <!-- ***** Céu estrelado ***** -->
+  <canvas class="sky" id="sky" aria-hidden="true"></canvas>
+
+  <!-- ***** Topo ***** -->
+  <header class="topbar" id="topbar">
+    <a href="#top" class="brand" aria-label="Olhe pra cima — início">
+      <span class="brand-mark" aria-hidden="true"><i></i></span>
+      olhe pra cima
+    </a>
+
+    <nav class="nav" aria-label="Seções">
+      <a href="#radar">Radar</a>
+      <a href="#iss">Estação Espacial</a>
+      <a href="#escada">Até a Lua</a>
+    </nav>
+
+    <button class="place-chip" id="changePlace" type="button" aria-label="Trocar local">
+      <svg class="ico"><use href="#i-pin"/></svg>
+      <span id="placeName">—</span>
+    </button>
+  </header>
+
+  <main id="top">
+
+    <!-- =====================================================
+         INTRO — pede a localização
+         ===================================================== -->
+    <section class="intro" id="intro">
+      <div class="intro-inner">
+        <span class="eyebrow"><span class="live-dot" aria-hidden="true"></span>Em tempo real</span>
+        <h1 class="intro-title">O que está passando<br><em>sobre você</em> agora?</h1>
+        <p class="intro-lead">Aviões cruzando o céu, a Estação Espacial a 400 km de altura e quantas pessoas estão voando bem em cima da sua cabeça.</p>
+
+        <div class="intro-actions">
+          <button class="primary-btn" id="useLocation" type="button">
+            <svg class="ico"><use href="#i-locate"/></svg>
+            Usar minha localização
+          </button>
+        </div>
+
+        <div class="divider"><span>ou</span></div>
+
+        <form class="city-form" id="cityForm" autocomplete="off" novalidate>
+          <label class="sr-only" for="cityInput">Digite sua cidade</label>
+          <div class="search">
+            <svg class="ico"><use href="#i-search"/></svg>
+            <input type="search" id="cityInput" placeholder="Digite sua cidade" aria-autocomplete="list" aria-controls="cityResults">
+          </div>
+          <ul class="city-results" id="cityResults" role="listbox" hidden></ul>
+        </form>
+
+        <p class="form-error" id="introError" role="alert"></p>
+        <p class="privacy-note">Sua localização fica só no seu navegador. Usamos ela apenas para saber o que está no seu céu.</p>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         RESULTADO
+         ===================================================== -->
+    <div class="results" id="results" hidden>
+
+      <!-- ***** Resumo ***** -->
+      <section class="summary" id="resumo">
+        <span class="eyebrow">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="summaryPlace">Sobre você</span> · <span id="clock">--:--:--</span>
+        </span>
+        <h2 class="summary-title">Neste exato momento,<br><em>sobre a sua cabeça:</em></h2>
+
+        <div class="counters">
+          <div class="counter">
+            <strong id="countPlanes">0</strong>
+            <span>aviões no seu céu</span>
+          </div>
+          <div class="counter counter-accent">
+            <strong id="countPeople">0</strong>
+            <span>pessoas voando sobre você</span>
+          </div>
+          <div class="counter">
+            <strong id="issDistanceSummary">—</strong>
+            <span>até a Estação Espacial</span>
+          </div>
+        </div>
+
+        <p class="summary-note" id="summaryNote"></p>
+      </section>
+
+      <!-- ***** 01 · Radar ***** -->
+      <section class="section" id="radar">
+        <header class="section-head">
+          <span class="section-num">01</span>
+          <h2 class="section-title">Radar</h2>
+          <p class="section-lead">Você está no centro. Cada pontinho é um avião de verdade, agora, voando perto de você.</p>
+        </header>
+
+        <div class="radar-layout">
+          <div class="radar-card">
+            <div class="radar-toolbar">
+              <div class="segmented" id="rangeToggle" role="radiogroup" aria-label="Raio do radar">
+                <button type="button" role="radio" data-range="50" aria-checked="false">50 km</button>
+                <button type="button" role="radio" data-range="100" aria-checked="true">100 km</button>
+                <button type="button" role="radio" data-range="200" aria-checked="false">200 km</button>
+              </div>
+
+              <span class="radar-status" id="radarStatus">
+                <i aria-hidden="true"></i>
+                <span id="radarStatusText">Buscando aviões…</span>
+              </span>
+            </div>
+
+            <div class="radar" id="radarBox">
+              <canvas id="radarCanvas" aria-label="Radar com os aviões ao seu redor" role="img"></canvas>
+              <div class="radar-planes" id="radarPlanes"></div>
+              <span class="radar-you" aria-hidden="true"></span>
+              <span class="compass n" aria-hidden="true">N</span>
+              <span class="compass l" aria-hidden="true">L</span>
+              <span class="compass s" aria-hidden="true">S</span>
+              <span class="compass o" aria-hidden="true">O</span>
+            </div>
+
+            <p class="radar-legend">
+              <span><i class="dot dot-air"></i>No ar</span>
+              <span><i class="dot dot-low"></i>Subindo ou descendo</span>
+              <span><i class="dot dot-ground"></i>No chão</span>
+            </p>
+          </div>
+
+          <aside class="flights" aria-label="Lista de voos">
+            <!-- Detalhe do voo selecionado -->
+            <div class="flight-detail" id="flightDetail" hidden>
+              <button class="icon-btn detail-close" id="detailClose" type="button" aria-label="Fechar detalhes">
+                <svg class="ico"><use href="#i-close"/></svg>
+              </button>
+              <span class="eyebrow" id="detailCountry">—</span>
+              <h3 class="detail-callsign" id="detailCallsign">—</h3>
+              <p class="detail-airline" id="detailAirline"></p>
+
+              <dl class="detail-grid">
+                <div><dt>Altitude</dt><dd id="detailAltitude">—</dd></div>
+                <div><dt>Velocidade</dt><dd id="detailSpeed">—</dd></div>
+                <div><dt>Direção</dt><dd id="detailHeading">—</dd></div>
+                <div><dt>Distância de você</dt><dd id="detailDistance">—</dd></div>
+                <div><dt>Subindo/descendo</dt><dd id="detailVertical">—</dd></div>
+                <div><dt>Pessoas a bordo (est.)</dt><dd id="detailPeople">—</dd></div>
+              </dl>
+
+              <p class="detail-note" id="detailNote"></p>
+            </div>
+
+            <div class="flights-head">
+              <h3>Voos por perto</h3>
+              <span id="flightsCount">0</span>
+            </div>
+            <ul class="flight-list" id="flightList">
+              <li class="flight-empty">Procurando aviões no seu céu…</li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ***** 02 · Estação Espacial ***** -->
+      <section class="section" id="iss">
+        <header class="section-head">
+          <span class="section-num">02</span>
+          <h2 class="section-title">Estação Espacial</h2>
+          <p class="section-lead">Uma casa a 400 km de altura, dando uma volta na Terra a cada 92 minutos — com gente morando dentro.</p>
+        </header>
+
+        <div class="iss-map-card">
+          <div class="iss-map" id="issMap">
+            <canvas id="issCanvas" aria-label="Mapa-múndi com a posição atual da Estação Espacial" role="img"></canvas>
+          </div>
+          <p class="iss-over" id="issOver">Localizando a Estação Espacial…</p>
+        </div>
+
+        <div class="iss-stats">
+          <article class="stat">
+            <span class="stat-label">Altitude agora</span>
+            <strong class="stat-value"><span id="issAltitude">—</span></strong>
+            <span class="stat-unit">km</span>
+          </article>
+          <article class="stat">
+            <span class="stat-label">Velocidade</span>
+            <strong class="stat-value"><span id="issSpeed">—</span></strong>
+            <span class="stat-unit">km/h</span>
+            <p class="stat-note" id="issSpeedNote"></p>
+          </article>
+          <article class="stat">
+            <span class="stat-label">Distância de você</span>
+            <strong class="stat-value"><span id="issDistance">—</span></strong>
+            <span class="stat-unit">km</span>
+            <p class="stat-note" id="issDistanceNote"></p>
+          </article>
+          <article class="stat">
+            <span class="stat-label">Voltas na Terra hoje</span>
+            <strong class="stat-value"><span id="issOrbitsToday">—</span></strong>
+            <span class="stat-unit">voltas</span>
+            <p class="stat-note">São cerca de 15,5 voltas por dia: 16 nasceres e 16 pores do sol para quem está a bordo.</p>
+          </article>
+        </div>
+
+        <!-- Próximas passagens visíveis -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Quando você vai conseguir ver</h3>
+            <p>A Estação Espacial é o objeto mais brilhante do céu depois da Lua e de Vênus. Ela aparece como uma estrela que se move rápido, sem piscar — sempre perto do amanhecer ou do anoitecer.</p>
+          </div>
+
+          <div class="next-pass" id="nextPass" hidden>
+            <span class="eyebrow">Próxima passagem visível</span>
+            <h4 class="next-pass-date" id="nextPassDate">—</h4>
+            <p class="next-pass-info" id="nextPassInfo"></p>
+            <div class="next-pass-countdown" id="nextPassCountdown"></div>
+            <button class="primary-btn" id="nextPassCalendar" type="button">
+              <svg class="ico"><use href="#i-calendar"/></svg>
+              Adicionar à agenda
+            </button>
+          </div>
+
+          <ol class="passes" id="passList">
+            <li class="pass-empty">Calculando as próximas passagens…</li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ***** 03 · Escada do céu ***** -->
+      <section class="section section-ladder" id="escada">
+        <header class="section-head">
+          <span class="section-num">03</span>
+          <h2 class="section-title">Daqui até a Lua</h2>
+          <p class="section-lead">Role para subir. Tudo está na ordem real de altura — e repare como os espaços vão ficando enormes.</p>
+        </header>
+
+        <div class="ladder" id="ladder">
+          <!-- Altímetro fixo que acompanha a rolagem -->
+          <div class="altimeter" id="altimeter" aria-hidden="true">
+            <span class="altimeter-label">Altitude</span>
+            <strong id="altimeterValue">0 m</strong>
+          </div>
+
+          <ol class="ladder-steps">
+            <li class="step" data-alt="0">
+              <span class="step-alt">0 m</span>
+              <h3>Você</h3>
+              <p>Aqui embaixo, olhando pra cima.</p>
+            </li>
+            <li class="step" data-alt="38">
+              <span class="step-alt">38 m</span>
+              <h3>Cristo Redentor</h3>
+              <p>Da base até o topo da estátua, com o pedestal.</p>
+            </li>
+            <li class="step" data-alt="2000">
+              <span class="step-alt">2 km</span>
+              <h3>Nuvens baixas</h3>
+              <p>As nuvens que trazem chuva costumam ficar entre 500 m e 2 km.</p>
+            </li>
+            <li class="step" data-alt="8849">
+              <span class="step-alt">8,8 km</span>
+              <h3>Topo do Everest</h3>
+              <p>O ponto mais alto da Terra. O ar tem um terço do oxigênio daqui de baixo.</p>
+            </li>
+            <li class="step step-live" data-alt="11000">
+              <span class="step-alt">11 km</span>
+              <h3>Aviões comerciais</h3>
+              <p>Agora mesmo, <strong id="ladderPlanes">—</strong> estão voando no seu céu.</p>
+            </li>
+            <li class="step" data-alt="35000">
+              <span class="step-alt">35 km</span>
+              <h3>Balões meteorológicos</h3>
+              <p>Sobem até estourar, medindo temperatura, vento e umidade.</p>
+            </li>
+            <li class="step step-mark" data-alt="100000">
+              <span class="step-alt">100 km</span>
+              <h3>Onde começa o espaço</h3>
+              <p>A Linha de Kármán: o limite oficial entre a atmosfera e o espaço.</p>
+            </li>
+            <li class="step step-live" data-alt="420000">
+              <span class="step-alt">~420 km</span>
+              <h3>Estação Espacial Internacional</h3>
+              <p>Agora a <strong id="ladderIss">—</strong> de você, a mais de 27 mil km/h.</p>
+            </li>
+            <li class="step" data-alt="540000">
+              <span class="step-alt">~540 km</span>
+              <h3>Telescópio Hubble</h3>
+              <p>Fotografando o universo desde 1990.</p>
+            </li>
+            <li class="step" data-alt="550000">
+              <span class="step-alt">~550 km</span>
+              <h3>Satélites Starlink</h3>
+              <p>Milhares deles, levando internet para o mundo todo.</p>
+            </li>
+            <li class="step" data-alt="20200000">
+              <span class="step-alt">20.200 km</span>
+              <h3>Satélites de GPS</h3>
+              <p>São eles que dizem ao seu celular onde você está.</p>
+            </li>
+            <li class="step" data-alt="35786000">
+              <span class="step-alt">35.786 km</span>
+              <h3>Satélites geoestacionários</h3>
+              <p>Giram junto com a Terra e parecem parados no céu. É onde ficam os satélites de TV.</p>
+            </li>
+            <li class="step step-moon" data-alt="384400000">
+              <span class="step-alt">384.400 km</span>
+              <h3>A Lua</h3>
+              <p>Dava pra colocar todos os planetas do Sistema Solar enfileirados nesse espaço.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ***** Rodapé ***** -->
+  <footer class="footer">
+    <p>Os dados chegam com alguns segundos de atraso e podem não mostrar todos os voos.</p>
+    <details class="sources">
+      <summary>Fontes dos dados</summary>
+      <ul>
+        <li>Aviões: rede aberta de receptores ADS-B</li>
+        <li>Posição e órbita da Estação Espacial: Where the ISS at? (wheretheiss.at)</li>
+        <li>Cálculo das passagens: biblioteca satellite.js</li>
+        <li>Busca de cidades: Open-Meteo</li>
+        <li>Mapa-múndi: Natural Earth</li>
+      </ul>
+    </details>
+    <p>#03 da série 100 sites · <span id="footerYear">2026</span></p>
+  </footer>
+
+  <!-- ***** Avisos ***** -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
