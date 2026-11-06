@@ -9,6 +9,9 @@
    ========================================================= */
 
 // Só repassa pedidos para estes endereços (evita virar um proxy aberto)
+const PROXY = 'olhe-pra-cima.isaducadev.workers.dev/?url=';
+
+
 const ALLOWED_HOSTS = [
   'api.adsb.lol',
   'api.airplanes.live',
