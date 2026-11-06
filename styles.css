@@ -1017,7 +1017,7 @@ body[data-view="intro"] .topbar {
 
 .pass:last-child { border-bottom: 0; }
 
-.pass-date { font-size: 15px; font-weight: 500; text-transform: capitalize; }
+.pass-date { font-size: 15px; font-weight: 500; }
 
 .pass-meta {
   display: block;
@@ -1307,7 +1307,7 @@ body[data-view="intro"] .footer { display: none; }
   .summary-title { margin-bottom: 36px; }
   .counters { grid-template-columns: 1fr; gap: 10px; }
   .counter { padding: 20px; flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; text-align: left; }
-  .counter strong { font-size: clamp(32px, 10vw, 44px); order: 2; }
+  .counter strong { font-size: clamp(28px, 9vw, 40px); order: 2; white-space: nowrap; }
   .counter span { order: 1; }
 
   .section { padding: 96px 16px 24px; }
@@ -1338,7 +1338,16 @@ body[data-view="intro"] .footer { display: none; }
   .pass { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 16px; }
   .pass-cal { grid-column: 1 / -1; justify-self: start; }
 
-  .altimeter { padding: 10px 14px; top: 68px; }
+  .altimeter {
+    float: none;
+    width: max-content;
+    margin: 0 0 20px auto;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 14px;
+    top: 68px;
+  }
   .altimeter strong { font-size: 20px; }
   .ladder-steps { padding-left: 32px; }
   .ladder-steps::before { left: 7px; }
