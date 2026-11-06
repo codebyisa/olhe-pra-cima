@@ -1,14 +1,3 @@
-/* =========================================================
-   Olhe pra cima — proxy opcional (Cloudflare Workers)
-
-   Use só se alguma API bloquear chamadas direto do navegador (CORS).
-   1. Crie um Worker em https://dash.cloudflare.com → Workers & Pages
-   2. Cole este código e publique
-   3. No script.js, preencha:
-      const PROXY = 'https://SEU-WORKER.workers.dev/?url=';
-   ========================================================= */
-
-// Só repassa pedidos para estes endereços (evita virar um proxy aberto)
 const PROXY = 'olhe-pra-cima.isaducadev.workers.dev/?url=';
 
 
