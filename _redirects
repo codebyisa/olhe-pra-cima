@@ -1,0 +1,4 @@
+/api/adsb/*       https://api.adsb.lol/:splat            200
+/api/airplanes/*  https://api.airplanes.live/:splat      200
+/api/adsbfi/*     https://opendata.adsb.fi/:splat        200
+/api/opensky/*    https://opensky-network.org/:splat     200

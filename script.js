@@ -10,8 +10,18 @@
 
   // Se alguma API bloquear chamadas do navegador (CORS), publique o
   // worker.js no Cloudflare Workers e coloque o endereço aqui, assim:
-  // const PROXY = 'https://olhe-pra-cima.SEU-USUARIO.workers.dev/?url=';
-  const PROXY = 'https://olhe-pra-cima.isaducadev.workers.dev/?url=';
+  // const PROXY = 'https://olhe-pra-cima-proxy.SEU-USUARIO.workers.dev/?url=';
+  // Publicando na Netlify com o arquivo _redirects, pode deixar vazio.
+  const PROXY = '';
+
+  // Atalhos do arquivo _redirects (Netlify): o próprio site busca os dados,
+  // sem bloqueio de CORS e sem precisar de proxy separado.
+  const REWRITES = {
+    'api.adsb.lol': '/api/adsb',
+    'api.airplanes.live': '/api/airplanes',
+    'opendata.adsb.fi': '/api/adsbfi',
+    'opensky-network.org': '/api/opensky',
+  };
 
   const REFRESH_FLIGHTS = 10000; // atualiza os aviões a cada 10 s
   const LOAD_FACTOR = 0.82;      // ocupação média dos voos no Brasil (~80%, ANAC)
@@ -184,6 +194,7 @@
   // Traduz o erro para algo legível na tela
   function describeError(err, route) {
     if (err.name === 'AbortError') return 'demorou demais para responder';
+    if (err.name === 'SyntaxError' && route === 'rewrite') return 'o arquivo _redirects não está ativo (o site está na Netlify?)';
     if (err.name === 'SyntaxError') {
       return route === 'proxy'
         ? 'o proxy respondeu algo inesperado (o código do worker foi colado e publicado com Deploy?)'
@@ -205,28 +216,37 @@
 
   // Tenta direto; se o navegador bloquear (CORS) ou falhar, tenta pelo proxy
   async function fetchWithTimeout(url, { timeout = 9000, text = false } = {}) {
-    const host = new URL(url).hostname;
-    const order = routeByHost[host] === 'proxy' ? ['proxy', 'direct'] : ['direct', 'proxy'];
+    const parsed = new URL(url);
+    const host = parsed.hostname;
+    const canRewrite = !!REWRITES[host] && location.protocol.startsWith('http');
+    const routes = ['direct', 'rewrite', 'proxy'];
+    const order = routeByHost[host] ? [routeByHost[host], ...routes.filter((r) => r !== routeByHost[host])] : routes;
     let lastError = null;
     const details = [];
 
     for (const route of order) {
       if (route === 'proxy' && !PROXY) continue;
+      if (route === 'rewrite' && !canRewrite) continue;
       try {
-        const target = route === 'proxy' ? PROXY + encodeURIComponent(url) : url;
+        const target = route === 'proxy'
+          ? PROXY + encodeURIComponent(url)
+          : route === 'rewrite'
+            ? REWRITES[host] + parsed.pathname + parsed.search
+            : url;
         const data = await rawFetch(target, timeout, text);
         if (routeByHost[host] !== route) {
           routeByHost[host] = route;
-          console.info(`[olhe pra cima] ${host}: funcionando via ${route === 'proxy' ? 'proxy' : 'chamada direta'}`);
+          console.info(`[olhe pra cima] ${host}: funcionando via ${route}`);
         }
         return data;
       } catch (err) {
         lastError = err;
-        details.push(`${route === 'proxy' ? 'pelo proxy' : 'direto'}: ${describeError(err, route)}`);
-        console.warn(`[olhe pra cima] ${host}: falhou via ${route === 'proxy' ? 'proxy' : 'chamada direta'} (${err.message})`);
+        const label = route === 'proxy' ? 'pelo proxy' : route === 'rewrite' ? 'pelo _redirects' : 'direto';
+        details.push(`${label}: ${describeError(err, route)}`);
+        console.warn(`[olhe pra cima] ${host}: falhou via ${route} (${err.message})`);
       }
     }
-    if (!PROXY) details.push('proxy: não configurado');
+    if (REWRITES[host] && !canRewrite) details.push('_redirects: só funciona com o site publicado');
     const error = lastError || new Error('Falha na conexão');
     error.details = details;
     throw error;
