@@ -1,7 +1,16 @@
-
+/* =========================================================
+   Olhe pra cima — script.js
+   ========================================================= */
 (() => {
   'use strict';
 
+  /* ---------------------------------------------------------
+     Configuração
+     --------------------------------------------------------- */
+
+  // Se alguma API bloquear chamadas do navegador (CORS), publique o
+  // worker.js no Cloudflare Workers e coloque o endereço aqui, assim:
+  // const PROXY = 'https://olhe-pra-cima.SEU-USUARIO.workers.dev/?url=';
   const PROXY = 'https://olhe-pra-cima.isaducadev.workers.dev/?url=';
 
   const REFRESH_FLIGHTS = 10000; // atualiza os aviões a cada 10 s
@@ -148,20 +157,43 @@
     return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   }
 
-  function withProxy(url) {
-    return PROXY ? PROXY + encodeURIComponent(url) : url;
-  }
+  // Lembra, para cada site, se a chamada direta ou pelo proxy funcionou
+  const routeByHost = {};
 
-  async function fetchWithTimeout(url, { timeout = 9000, text = false } = {}) {
+  async function rawFetch(url, timeout, text) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout);
     try {
-      const res = await fetch(withProxy(url), { signal: ctrl.signal, headers: { Accept: text ? 'text/plain' : 'application/json' } });
+      const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: text ? 'text/plain' : 'application/json' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return text ? await res.text() : await res.json();
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  // Tenta direto; se o navegador bloquear (CORS) ou falhar, tenta pelo proxy
+  async function fetchWithTimeout(url, { timeout = 9000, text = false } = {}) {
+    const host = new URL(url).hostname;
+    const order = routeByHost[host] === 'proxy' ? ['proxy', 'direct'] : ['direct', 'proxy'];
+    let lastError = null;
+
+    for (const route of order) {
+      if (route === 'proxy' && !PROXY) continue;
+      try {
+        const target = route === 'proxy' ? PROXY + encodeURIComponent(url) : url;
+        const data = await rawFetch(target, timeout, text);
+        if (routeByHost[host] !== route) {
+          routeByHost[host] = route;
+          console.info(`[olhe pra cima] ${host}: funcionando via ${route === 'proxy' ? 'proxy' : 'chamada direta'}`);
+        }
+        return data;
+      } catch (err) {
+        lastError = err;
+        console.warn(`[olhe pra cima] ${host}: falhou via ${route === 'proxy' ? 'proxy' : 'chamada direta'} (${err.message})`);
+      }
+    }
+    throw lastError || new Error('Falha na conexão');
   }
 
   function loadScript(urls) {
