@@ -1,21 +1,6 @@
-/* =========================================================
-   Olhe pra cima — script.js
-   ========================================================= */
 (() => {
   'use strict';
-
-  /* ---------------------------------------------------------
-     Configuração
-     --------------------------------------------------------- */
-
-  // Se alguma API bloquear chamadas do navegador (CORS), publique o
-  // worker.js no Cloudflare Workers e coloque o endereço aqui, assim:
-  // const PROXY = 'https://olhe-pra-cima-proxy.SEU-USUARIO.workers.dev/?url=';
-  // Publicando na Netlify com o arquivo _redirects, pode deixar vazio.
   const PROXY = '';
-
-  // Atalhos do arquivo _redirects (Netlify): o próprio site busca os dados,
-  // sem bloqueio de CORS e sem precisar de proxy separado.
   const REWRITES = {
     'api.adsb.lol': '/api/adsb',
     'api.airplanes.live': '/api/airplanes',
@@ -23,8 +8,8 @@
     'opensky-network.org': '/api/opensky',
   };
 
-  const REFRESH_FLIGHTS = 10000; // atualiza os aviões a cada 10 s
-  const LOAD_FACTOR = 0.82;      // ocupação média dos voos no Brasil (~80%, ANAC)
+  const REFRESH_FLIGHTS = 6000; 
+  const LOAD_FACTOR = 0.82;    
 
   const LIBS = {
     satellite: [
@@ -38,7 +23,7 @@
   };
   const LAND_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json';
 
-  // Imagens reais da Terra feitas por satélites da NASA (GIBS, domínio público)
+
   const gibs = (layer, format = 'image/jpeg') =>
     `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=${layer}&STYLES=&SRS=EPSG:4326&BBOX=-180,-90,180,90&WIDTH=2048&HEIGHT=1024&FORMAT=${encodeURIComponent(format)}`;
   const EARTH_DAY = [gibs('BlueMarble_NextGeneration'), gibs('BlueMarble_ShadedRelief_Bathymetry')];
