@@ -28,10 +28,17 @@
   };
   const LAND_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json';
 
+  // Imagens reais da Terra feitas por satélites da NASA (GIBS, domínio público)
+  const gibs = (layer, format = 'image/jpeg') =>
+    `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=${layer}&STYLES=&SRS=EPSG:4326&BBOX=-180,-90,180,90&WIDTH=2048&HEIGHT=1024&FORMAT=${encodeURIComponent(format)}`;
+  const EARTH_DAY = [gibs('BlueMarble_NextGeneration'), gibs('BlueMarble_ShadedRelief_Bathymetry')];
+  const EARTH_NIGHT = [gibs('VIIRS_Black_Marble'), gibs('VIIRS_CityLights_2012')];
+
   // Fontes de aviões, em ordem de preferência (todas gratuitas)
   const FLIGHT_SOURCES = [
     { name: 'adsb.lol', url: (lat, lon, nm) => `https://api.adsb.lol/v2/point/${lat}/${lon}/${nm}`, parse: parseReadsb },
     { name: 'airplanes.live', url: (lat, lon, nm) => `https://api.airplanes.live/v2/point/${lat}/${lon}/${nm}`, parse: parseReadsb },
+    { name: 'adsb.fi', url: (lat, lon, nm) => `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${nm}`, parse: parseReadsb },
     {
       name: 'OpenSky',
       url: (lat, lon, nm) => {
@@ -312,7 +319,9 @@
   let satrec = null;           // órbita da ISS
   let issNow = null;           // { lat, lon, altKm, speedKmh, distKm, elevation, azimuth }
   let passes = [];
-  let land = null;             // polígonos do mapa-múndi
+  let land = null;             // polígonos do mapa-múndi (reserva)
+  let earthDay = null;         // foto de satélite da Terra (dia)
+  let earthNight = null;       // foto de satélite da Terra (luzes à noite)
   let issOverLabel = '';
   let lastOverLookup = 0;
 
@@ -975,12 +984,36 @@
   }
 
   /* ----- Mapa-múndi ----- */
+  function loadImage(urls) {
+    return new Promise((resolve, reject) => {
+      const list = [...urls];
+      const next = () => {
+        const src = list.shift();
+        if (!src) { reject(new Error('Imagem indisponível')); return; }
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => resolve(img);
+        img.onerror = next;
+        img.src = src;
+      };
+      next();
+    });
+  }
+
   async function loadLand() {
-    try {
-      await loadScript(LIBS.topojson);
-      const topo = await fetchWithTimeout(LAND_URL);
-      land = window.topojson.feature(topo, topo.objects.land);
-    } catch { land = null; }
+    // Fotos de satélite (dia e noite); se falharem, usa o contorno dos continentes
+    const [day, night] = await Promise.allSettled([loadImage(EARTH_DAY), loadImage(EARTH_NIGHT)]);
+    earthDay = day.status === 'fulfilled' ? day.value : null;
+    earthNight = night.status === 'fulfilled' ? night.value : null;
+    if (!earthDay) console.warn('[olhe pra cima] Fotos de satélite indisponíveis, usando o mapa simples.');
+
+    if (!earthDay) {
+      try {
+        await loadScript(LIBS.topojson);
+        const topo = await fetchWithTimeout(LAND_URL);
+        land = window.topojson.feature(topo, topo.objects.land);
+      } catch { land = null; }
+    }
     drawIssMap();
   }
 
@@ -1001,35 +1034,7 @@
 
     g.clearRect(0, 0, W, H);
 
-    // Grade
-    g.strokeStyle = 'rgba(156,201,221,.07)';
-    g.lineWidth = 1;
-    for (let lon = -150; lon <= 150; lon += 30) { g.beginPath(); g.moveTo(X(lon), 0); g.lineTo(X(lon), H); g.stroke(); }
-    for (let lat = -60; lat <= 60; lat += 30) { g.beginPath(); g.moveTo(0, Y(lat)); g.lineTo(W, Y(lat)); g.stroke(); }
-
-    // Continentes
-    if (land) {
-      g.fillStyle = 'rgba(156,201,221,.16)';
-      g.strokeStyle = 'rgba(156,201,221,.28)';
-      g.lineWidth = 0.6 * dpr;
-      const drawRing = (ring) => {
-        ring.forEach(([lon, lat], i) => {
-          const x = X(lon), y = Y(lat);
-          if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
-        });
-        g.closePath();
-      };
-      (land.features || [land]).forEach((f) => {
-        const geom = f.geometry || f;
-        const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates || [];
-        g.beginPath();
-        polys.forEach((poly) => poly.forEach(drawRing));
-        g.fill('evenodd');
-        g.stroke();
-      });
-    }
-
-    // Noite (lado escuro da Terra)
+    // Posição do Sol agora → onde é dia e onde é noite
     const now = new Date();
     const sun = sunEci(now);
     const sl = Math.hypot(sun.x, sun.y, sun.z);
@@ -1040,25 +1045,85 @@
     if (subLon > 180) subLon -= 360;
     if (subLon < -180) subLon += 360;
 
-    g.fillStyle = 'rgba(0,0,0,.38)';
-    g.beginPath();
-    const step = Math.max(2, Math.round(W / 180));
+    const step = Math.max(2, Math.round(W / 240));
     const safeDecl = Math.abs(decl) < 0.001 ? 0.001 : decl;
     const termY = (x) => {
       const lon = (x / W) * 360 - 180;
       return Y(Math.atan(-Math.cos((lon - subLon) * D2R) / Math.tan(safeDecl)) * R2D);
     };
-    if (safeDecl > 0) {
-      g.moveTo(0, H);
-      for (let x = 0; x <= W; x += step) g.lineTo(x, termY(x));
-      g.lineTo(W, H);
+    const nightPath = () => {
+      g.beginPath();
+      const edge = safeDecl > 0 ? H : 0;
+      g.moveTo(0, edge);
+      for (let x = 0; x <= W + step; x += step) g.lineTo(Math.min(x, W), termY(Math.min(x, W)));
+      g.lineTo(W, edge);
+      g.closePath();
+    };
+
+    if (earthDay) {
+      // Dia: foto real da Terra (Blue Marble, NASA)
+      g.drawImage(earthDay, 0, 0, W, H);
+
+      // Noite: luzes das cidades vistas do espaço (Black Marble, NASA)
+      g.save();
+      nightPath();
+      g.clip();
+      if (earthNight) {
+        g.drawImage(earthNight, 0, 0, W, H);
+        g.fillStyle = 'rgba(4, 8, 18, .25)';
+      } else {
+        g.fillStyle = 'rgba(2, 5, 12, .72)';
+      }
+      g.fillRect(0, 0, W, H);
+      g.restore();
+
+      // Linha do crepúsculo, suavizada
+      g.save();
+      g.beginPath();
+      for (let x = 0; x <= W; x += step) {
+        if (x === 0) g.moveTo(x, termY(x)); else g.lineTo(x, termY(x));
+      }
+      g.strokeStyle = 'rgba(255, 196, 120, .35)';
+      g.lineWidth = 6 * dpr;
+      g.filter = `blur(${4 * dpr}px)`;
+      g.stroke();
+      g.restore();
+
+      // Leve escurecida para os elementos aparecerem melhor
+      g.fillStyle = 'rgba(7, 9, 13, .12)';
+      g.fillRect(0, 0, W, H);
     } else {
-      g.moveTo(0, 0);
-      for (let x = 0; x <= W; x += step) g.lineTo(x, termY(x));
-      g.lineTo(W, 0);
+      // Reserva: grade + contorno dos continentes
+      g.strokeStyle = 'rgba(156,201,221,.07)';
+      g.lineWidth = 1;
+      for (let lon = -150; lon <= 150; lon += 30) { g.beginPath(); g.moveTo(X(lon), 0); g.lineTo(X(lon), H); g.stroke(); }
+      for (let lat = -60; lat <= 60; lat += 30) { g.beginPath(); g.moveTo(0, Y(lat)); g.lineTo(W, Y(lat)); g.stroke(); }
+
+      if (land) {
+        g.fillStyle = 'rgba(156,201,221,.16)';
+        g.strokeStyle = 'rgba(156,201,221,.28)';
+        g.lineWidth = 0.6 * dpr;
+        const drawRing = (ring) => {
+          ring.forEach(([lon, lat], i) => {
+            const x = X(lon), y = Y(lat);
+            if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+          });
+          g.closePath();
+        };
+        (land.features || [land]).forEach((f) => {
+          const geom = f.geometry || f;
+          const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates || [];
+          g.beginPath();
+          polys.forEach((poly) => poly.forEach(drawRing));
+          g.fill('evenodd');
+          g.stroke();
+        });
+      }
+
+      g.fillStyle = 'rgba(0,0,0,.38)';
+      nightPath();
+      g.fill();
     }
-    g.closePath();
-    g.fill();
 
     // Você
     if (place) {
@@ -1391,7 +1456,7 @@
 
     // Estação Espacial e mapa
     initIss(mySession);
-    if (!land) loadLand(); else drawIssMap();
+    if (!land && !earthDay) loadLand(); else drawIssMap();
 
     // Relógio, aviões em movimento, ISS e contagem regressiva (1×/s)
     tickTimer = setInterval(() => {
