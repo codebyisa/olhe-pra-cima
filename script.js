@@ -191,13 +191,14 @@
     }
     if (err instanceof TypeError) {
       return route === 'proxy'
-        ? 'o proxy não respondeu (confira o endereço do worker na linha PROXY)'
+        ? 'o proxy não respondeu ou respondeu sem autorização (abra o endereço do worker numa aba nova para testar)'
         : 'bloqueado pelo navegador (CORS)';
     }
     const code = Number(String(err.message).replace(/\D/g, ''));
     if (code === 401) return 'exige login (HTTP 401)';
     if (code === 403) return 'acesso negado (HTTP 403)';
     if (code === 404) return 'endereço não encontrado (HTTP 404)';
+    if (code === 502) return 'o proxy não conseguiu acessar este serviço (HTTP 502)';
     if (code === 429) return 'limite de consultas atingido (HTTP 429)';
     return err.message || 'falhou';
   }
