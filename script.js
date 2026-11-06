@@ -41,7 +41,9 @@
     { name: 'adsb.fi', url: (lat, lon, nm) => `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${nm}`, parse: parseReadsb },
     {
       name: 'OpenSky',
-      url: (lat, lon, nm) => {
+      url: (latStr, lonStr, nm) => {
+        const lat = Number(latStr);
+        const lon = Number(lonStr);
         const dLat = (nm * 1.852) / 111;
         const dLon = dLat / Math.cos(lat * Math.PI / 180);
         return `https://opensky-network.org/api/states/all?lamin=${(lat - dLat).toFixed(3)}&lomin=${(lon - dLon).toFixed(3)}&lamax=${(lat + dLat).toFixed(3)}&lomax=${(lon + dLon).toFixed(3)}`;
@@ -179,11 +181,33 @@
     }
   }
 
+  // Traduz o erro para algo legível na tela
+  function describeError(err, route) {
+    if (err.name === 'AbortError') return 'demorou demais para responder';
+    if (err.name === 'SyntaxError') {
+      return route === 'proxy'
+        ? 'o proxy respondeu algo inesperado (o código do worker foi colado e publicado com Deploy?)'
+        : 'respondeu algo inesperado';
+    }
+    if (err instanceof TypeError) {
+      return route === 'proxy'
+        ? 'o proxy não respondeu (confira o endereço do worker na linha PROXY)'
+        : 'bloqueado pelo navegador (CORS)';
+    }
+    const code = Number(String(err.message).replace(/\D/g, ''));
+    if (code === 401) return 'exige login (HTTP 401)';
+    if (code === 403) return 'acesso negado (HTTP 403)';
+    if (code === 404) return 'endereço não encontrado (HTTP 404)';
+    if (code === 429) return 'limite de consultas atingido (HTTP 429)';
+    return err.message || 'falhou';
+  }
+
   // Tenta direto; se o navegador bloquear (CORS) ou falhar, tenta pelo proxy
   async function fetchWithTimeout(url, { timeout = 9000, text = false } = {}) {
     const host = new URL(url).hostname;
     const order = routeByHost[host] === 'proxy' ? ['proxy', 'direct'] : ['direct', 'proxy'];
     let lastError = null;
+    const details = [];
 
     for (const route of order) {
       if (route === 'proxy' && !PROXY) continue;
@@ -197,10 +221,14 @@
         return data;
       } catch (err) {
         lastError = err;
+        details.push(`${route === 'proxy' ? 'pelo proxy' : 'direto'}: ${describeError(err, route)}`);
         console.warn(`[olhe pra cima] ${host}: falhou via ${route === 'proxy' ? 'proxy' : 'chamada direta'} (${err.message})`);
       }
     }
-    throw lastError || new Error('Falha na conexão');
+    if (!PROXY) details.push('proxy: não configurado');
+    const error = lastError || new Error('Falha na conexão');
+    error.details = details;
+    throw error;
   }
 
   function loadScript(urls) {
@@ -423,6 +451,7 @@
     const lat = place.lat.toFixed(4);
     const lon = place.lon.toFixed(4);
 
+    const report = [];
     for (let i = 0; i < FLIGHT_SOURCES.length; i++) {
       const idx = (sourceIndex + i) % FLIGHT_SOURCES.length;
       const src = FLIGHT_SOURCES[idx];
@@ -434,14 +463,19 @@
         setRadarStatus('ok', `Ao vivo · atualizado às ${fmtClock(new Date())}`);
         return;
       } catch (err) {
-        // tenta a próxima fonte
+        report.push(`<li><strong>${src.name}</strong> — ${(err.details || [err.message]).join(' · ')}</li>`);
       }
     }
 
     if (mySession !== session) return;
     setRadarStatus('error', 'Não foi possível carregar os aviões agora');
     if (!flights.size) {
-      el.flightList.innerHTML = `<li class="flight-empty">Os serviços de aviões não responderam. Isso pode ser um bloqueio do navegador (CORS) — veja a observação sobre o proxy no topo do script.js — ou instabilidade momentânea. Tentando de novo em instantes…</li>`;
+      el.flightList.innerHTML = `
+        <li class="flight-empty">
+          Nenhuma fonte de aviões respondeu. Diagnóstico:
+          <ul class="flight-report">${report.join('')}</ul>
+          Tentando de novo em instantes…
+        </li>`;
     }
   }
 

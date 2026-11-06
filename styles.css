@@ -843,6 +843,16 @@ body[data-view="intro"] .topbar {
   color: var(--text-2);
 }
 
+.flight-report {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.flight-report strong { color: var(--text); font-weight: 500; }
+
 /* ---------- Estação Espacial ---------- */
 .iss-map-card {
   padding: 20px;
